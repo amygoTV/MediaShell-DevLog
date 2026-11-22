@@ -3,6 +3,14 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.9.9 (2026-11-22)
+
+用户反馈部分直播源是 FLV 格式，内置播放器播不了，需要 mpv/VLC。
+
+- **内置 mpv**：从 shinchiro/mpv-winbuild-cmake 官方发布下载 mpv v0.42.0 x86_64 便携版（34MB 7z，用 ghfast.top 镜像绕过 GitHub 直连空响应；py7zr 不支持 BCJ2 滤镜，改用 7-Zip 独立版 7za.exe 解压），部署到 `D:/userdata/players/mpv.exe`（main.js 的 PLAYER_CANDIDATES 已含 `DATA_DIR/players/mpv.exe`）。mpv.exe 121MB + d3dcompiler_43.dll，实测 `--version` 正常。⚠️ 踩坑：7z 内 mpv.exe 在**解压根目录**而非 `mpv/` 子目录（子目录只有 fonts.conf），最初 cp 错源导致 0 字节。
+- **FLV 自动接管**：新增 `isFlvUrl()`（.flv 后缀 / format=flv / /flv/ 路径）+ `availableExternalPlayer()`；livePlayChannel 遇 FLV 直接甩外部播放器，无扩展名流原生失败后也自动切外部。
+- **验证**：smoke 25/25（新增 isFlvUrl 用例）+ store 11/11。
+
 ## v1.9.8 (2026-11-22)
 
 用户反馈播放卡顿，希望加速播放器内核。
