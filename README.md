@@ -3,6 +3,20 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.9.6 (2026-11-22)
+
+用户诉求：像影视仓那样可以选择接口和线路（确认后聚焦「订阅线路/仓库」这一层，不要多订阅管理/点播站点搜索/频道线路排序）。
+
+- **行为变更**：导入多级索引订阅（storeHouse/urls）时不再由程序自动选线，改为弹窗让用户自己挑。之前 `pickBestLine` 自动选虽然按质量排序，但选错了用户无从知晓、只能重新导入碰运气。
+- **实现**：
+  - `probeCandidates(items)`：并发探测所有候选，返回元数据（name/url/sites/goodLives/livesTotal/ms/next/ok）。
+  - `expandInteractive(url, rootCfg, choose)`：逐级展开，遇 storeHouse/urls 回调 `choose({kind,candidates})`（返回行索引 / 'auto' / null），返回 `{cfg, trail}`。
+  - `showLineDialog()`：弹窗列出每条线路实测信息 + 质量标记（推荐/可用/下级索引/失效/当前）；点某行即用该线，点「自动选最优」沿用质量排序。
+  - `compareLineQuality()` 从 pickBestLine 抽出，供自动选线复用。
+- **记住选择**：选中的源地址与线路路径存 `settings.subscriptionUrl` + `settings.lineTrail`，下次启动直接用所选快照，不再重复弹窗；侧边栏与设置面板各加「🔀 切换线路」按钮，点击重拉原地址重新选择，选后刷新站点/分类/直播缓存。
+- **踩坑**：① smoke 断言误写成 `r.sites`（实际返回 `{cfg,trail}`），应为 `r.cfg.sites`；② auto 分支原只筛末级 `c.ok`，但真实 zheteng.json 第一级 storeHouse 指向的是含 urls 的索引（无 sites），会报「没有可用的线路」——改为先取末级按质量排、全是中间层则取一条 `c.next` 继续展开。
+- **验证**：smoke 21/21（新增候选探测元数据/用户指定线路/auto 选最优/取消 4 例），store 11/11；打包便携版 `MediaShell-1.9.6-portable.exe`（69,913,734B，图标注入 OK、overlay 完整），顶层 exe 替换、D:/MediaShell 目录版部署（asar v1.9.6、userdata 保留）、便携版真实启动进程存活。
+
 ## v1.9.5 (2026-11-22)
 - 修复 `pickBestLine` 纯按速度选线的缺陷：21 条线路中 14 条是 sites=1 的空壳垂直线路（短剧/课堂/赛事），JSON 小、CDN 命中快（~180ms），永远比主线路（~280ms）快而被选中。选到后站点几乎为空 + lives 指向失效 `PlatformLive.txt`（实测 404）/旧 TXT，用户看到「多仓解析混乱 + 直播无法播放」。
 - 新选线策略（质量优先，仍保留影视仓「选最快可用」习惯）：站点数降序 → 有效直播源（m3u/txt 且非 PlatformLive）降序 → 响应速度升序。真实 CDN 连续 3 轮均稳定选中 sites=107 的主线路。
