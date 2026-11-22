@@ -3,6 +3,20 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.12.0 (2026-11-23)
+
+用户反馈：**「mpv 播放窗口能不能限制在播放窗口，不要弹出」**。v1.11 走独立窗口虽然解决了多窗口/后台有声，但观感仍是「弹了个播放器出来」，与「壳内播放区」割裂。
+
+- **mpv 内嵌方案（`--wid` + 透明承载窗口）**：主进程新增一个尺寸**恰好等于播放区**的透明 `BrowserWindow` 作为承载窗口，取其 HWND 传给 mpv `--wid=<HWND>`，mpv 于是把视频窗口挂成承载窗口的原生子窗口 —— 画面就落在壳内播放区，不再弹出独立窗口。承载窗口 `parent: win`（owned window）→ 始终浮在主窗口之上、随主窗口最小化隐藏，也不会盖住其它应用。
+- **踩坑 1：Chromium 渲染层遮挡原生子窗口**：承载窗口里一旦加载页面，Chromium 会创建 `Chrome_RenderWidgetHostHWND`，它盖住 mpv 子窗口 → 播放区全黑（初版代码注释写「不加载任何页面」，下面却又有 `loadURL('about:blank')`，自相矛盾）。用 4 变体并行对照实测（A 普通窗口 / B 透明+about:blank / C 透明+不加载 / D 透明+离屏 offscreen），**只有「透明 + 不加载任何 URL」能让 mpv 视频窗口直接可见**（变体 C 的子窗口列表里根本没有 `Chrome_RenderWidgetHostHWND`）。据此删掉 `loadURL`，并在代码里写明「绝不能 loadURL」的原因。
+- **踩坑 2：坐标原点错位**：`getBoundingClientRect()` 相对**客户区**，而 `win.getBounds()` 的原点在边框左上角（实测标题栏偏移 x=8 / y=31），导致画面整体偏出播放区、压住左侧频道列表与顶部工具栏。改为统一用 `win.getContentBounds()` 的原点，三处（建窗口 / 同步位置 / 上报坐标）同步修正。
+- **踩坑 3：播放区内的 DOM 全部被遮挡**：原生承载窗口会盖住播放区里的任何 DOM（中央暂停图标、提示条都看不见）。对策：① 播放状态提示移到**区外**新起一行（`▶ 播放中 · mpv 硬解内嵌` / `⏸ 已暂停（单击画面恢复）`）；② 画面上的暂停文字交给 mpv 自己的 OSD（IPC `show-text`）；③ 线路按钮从播放区内绝对定位改为区外流式块，不再被视频压住。
+- **鼠标交互闭环**：承载窗口 `setIgnoreMouseEvents(true, {forward:true})` 让点击穿透到主窗口渲染层，再经 mpv IPC 管道（`--input-ipc-server`，主进程用 Node `net.connect` 连 Windows 命名管道）转发 `set pause` / `set fullscreen`。实测真实 Win32 鼠标点击：单击 → 暂停、再单击 → 恢复、双击 → 全屏，全部生效。
+- **全屏退出**：双击进全屏后 mpv 盖住全屏，壳收不到第二次双击 → 改用 `--input-conf` 保留 mpv 内置键位（ESC 退出全屏、空格暂停），禁掉 `q`/`Q` 退出进程（避免误关整条直播），并定义 `MBTN_LEFT_DBL cycle fullscreen`；同时壳内每 1.5s 用 IPC `get_property` 读 mpv 真实 `fullscreen`/`pause` 回填状态条，用户按 ESC 后状态条立刻同步。
+- **双击全屏顺手恢复播放**：双击会先触发一次 click（暂停），进全屏时补发 `set pause no`。
+- **排障能力**：mpv 每次启动写带时间戳日志 `%TEMP%\MediaShell\mpv-embed-*.log`（只留最近 5 份）+ 参数摘要 `mpv-embed-index.log`；新增 `live-embed-info` 返回承载窗口句柄/位置。踩坑：mpv 用 ANSI 文件 API，**日志路径含中文会静默失败** → 必须落纯 ASCII 目录。
+- **验证**：真实环境（`verify_click.js` + Python ctypes 真实鼠标点击 + Win32 窗口层级诊断）实测凤凰卫视 FLV 画面（HD 台标、中文字幕、滚动新闻条）完整显示在壳内播放区；`smoke_test.js` 新增 5 个内嵌用例 **31/31**，`store_test.js` 11/11。
+
 ## v1.11.0 (2026-11-22)
 
 用户反馈：直播页仍看不到 mpv/⚡硬解按钮，但播 flv 会自动弹 mpv、多线路弹多个、关闭后后台仍有声音。要求「把内置播放器换成 mpv」。用户明确选择**彻底移除内置，只用 mpv**。
