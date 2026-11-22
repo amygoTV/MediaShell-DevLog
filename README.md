@@ -3,6 +3,15 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.7.0 (2026-11-22)
+
+- **直播源改为影视仓/TVBox 标准 TXT 格式**：用户提供了 TVBoxBD0130 的直播列表作为格式样本（`E://BaiduNetdiskDownload//TVBoxBD0130//TVLives.txt`），本壳随之对齐 —— UTF-8 带 BOM + CRLF、**一行一条线路**、同名频道重复出现（客户端按频道名合并为多线路）、**数据行之间不留空行**（空行不含 `://` 会被影视仓当成频道指令行，直接导致整个直播列表为空）、频道名改 `CCTV-1` 风格。
+- **修复 `parseTVLines` 不合并同名频道**：此前按「一行一频道」写死，同名行会变成多条重名条目；现按频道名合并 urls，并剥离 UTF-8 BOM、兼容 `,` 与 `#` 两种地址分隔。实测本地 `TVLives.txt` → **187 频道 / 389 线路，无重名条目**（B站直播 25、赛事直播 185）。
+- **本地内置直播源全量刷新**：`config/TVLives.txt`、`config/BiliLive.txt`、`config/LiveSports.txt` 与 `config/channel_plan.json` 同步主仓库最新构建。
+- **站点配置切到永久固定地址链**：`zheteng_v2.json`（主 cdn + 备 gcore）→ `aizheteng_v2.json`（21 条，垂直线路走 `YSCv3/`）→ 各配置 lives 指向 `TVLives_v2.m3u`；旧名地址仅作兼容。
+- 本地部署同步：`MediaShellApp/resources/app.asar` 与 `D://MediaShell//resources//app.asar` 已用新资源重新打包；便携版 EXE 重新打包为 `MediaShell-1.7.0-portable.exe`。
+- 版本 v1.6.0 → v1.7.0（`package.build.json`、`package.json`、README 同步）。
+
 ## v1.6.0 (2026-11-22)
 
 - **改用永久固定订阅地址**：用户希望收藏一次地址、不再随版本更换。订阅地址统一为 `@master`，壳仓库 config 的 aizheteng/zheteng 引用同步回 `@master`，版本 v1.5.1 → v1.6.0。
