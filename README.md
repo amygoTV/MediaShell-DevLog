@@ -3,12 +3,12 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
-## v1.4.9 (2026-11-22)
+## v1.5.0 (2026-11-22)
 
 - **TVLives 直播源加主备节点**（26 份配置，含壳仓库 config）：接口里每条 `TVLives.txt` 后新增 `TVLives(备)`，URL 走 `fastly.jsdelivr.net@master`；主链接保持 `@master`（直播源每天由 Action 重建，固定 tag 会冻结内容）。两节点实测内容 MD5 一致、约 1 秒返回。
 - **多仓入口主备已就位**：`zheteng.json` 前两条为 cdn 主 + fastly 备，均指向 `aizheteng.json`；`aizheteng.json` 21 条子配置保持单地址不变。
 - **Action 有效性校验加固**：主仓库新增 `scripts/validate_multi_repo.py`，在 `Aizheteng_Sync.yml` 提交前用严格 JSON 解析校验两个索引 + 21 条子配置 + 主备入口，任一失败即不提交；自有地址映射本地文件校验，避免 CDN 缓存误判。补上了 `update_aizheteng.py` 宽松解析（`strip_comments`）会放过 `//` 注释坏配置的漏洞。
-- 版本 v1.4.8 → v1.4.9（壳仓库 `package.build.json`、README 同步）。
+- 版本 v1.4.9 → v1.5.0（壳仓库 `package.build.json`、README 同步）。
 
 ## v1.4.8 (2026-11-22)
 
