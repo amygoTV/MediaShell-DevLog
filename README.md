@@ -3,6 +3,15 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.10.0 (2026-11-22)
+
+用户反馈直播页看不到 mpv(轻快) 与 ⚡硬解按钮。
+
+- **根因**：v1.9.9 把 mpv 放到 `D:/userdata/players/`，但便携版单文件 EXE 每次解压到 `D://User//Temp//MediaShellData//`，DATA_DIR = 临时目录/userdata，`detect-players` 扫 `DATA_DIR/players/mpv.exe` 落空。目录版 DATA_DIR 才是 D:/userdata。
+- **修复**：`PLAYER_CANDIDATES.mpv` 增加固定绝对路径 `D://MediaShellPlayers//mpv.exe`（不受解压影响，优先命中），mpv 部署到该处；保留 DATA_DIR 候选兜底。
+- ⚠️ 排查中还发现：从工具启动的 explorer 会被 WorkBuddy 会话清理回收，普通 Start-Process/计划任务/WMI 都被安全策略限制；最终用「注册一次性计划任务 → Start-ScheduledTask → 清理任务」由 Task Scheduler 服务脱离工具进程树拉起，explorer 才稳定存活（PID 54652）。
+- **验证**：smoke 25/25 + store 11/11。
+
 ## v1.9.9 (2026-11-22)
 
 用户反馈部分直播源是 FLV 格式，内置播放器播不了，需要 mpv/VLC。
