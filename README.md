@@ -3,6 +3,16 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.9.2 (2026-11-22)
+
+修复便携版外壳 exe「还是没图标」——**本轮最重要的踩坑**。
+
+- **真根因**：v1.9.1 及以前，`signAndEditExecutable: false`（当初为绕开 winCodeSign 解压需管理员建符号链接的失败）让 electron-builder 跳过了对 **portable 自解压外壳**的图标注入；`afterPack` 钩子只改到内层 `win-unpacked/MediaShell.exe`（用户双击不到）。用户看到的外壳一直是 Electron 默认图标——此前误判为「Windows 图标缓存」，实为外壳根本没注入。
+- **⚠️ 致命陷阱**：直接对最终 exe 跑 `rcedit --set-icon` **会重写 PE 并丢掉尾部 overlay（NSIS payload）**，exe 从 66.7MB 缩到 410KB，程序彻底报废。第一次尝试正是这样把文件弄坏的（已从完好副本恢复）。
+- **正确解法**：新增 `scripts/inject_icon_keep_overlay.py`——先记录 overlay 起点（最后节末尾），只对 PE 主体用 rcedit 注入图标，再把 69,498,570 字节 overlay 原样拼回，并校验 overlay 逐字节一致。`afterAllArtifactBuild` 钩子（`scripts/apply_final_icon.js`）在打包后自动调用它。
+- **验证**：最终 exe 69,909,194 字节不变、图标 7/7 尺寸全命中设计图标、overlay 完整性 OK；真实启动测试进程存活并成功解压出 `MediaShellData` 临时目录（证明 payload 完好、程序能自解压运行）。
+- `.gitignore` 扩展为忽略全部 `dist*/`，实验产物不入库。
+
 ## v1.9.1 (2026-11-22)
 
 用户反馈三个问题并已修复。
