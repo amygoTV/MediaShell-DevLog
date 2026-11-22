@@ -3,6 +3,11 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.6.0 (2026-11-22)
+
+- **改用永久固定订阅地址**：用户希望收藏一次地址、不再随版本更换。订阅地址统一为 `@master`，壳仓库 config 的 aizheteng/zheteng 引用同步回 `@master`，版本 v1.5.1 → v1.6.0。
+- 内容自动更新由主仓库 GitHub Actions 保证：每天更新后调用 jsdelivr 官方 purge 端点清除边缘缓存（`scripts/purge_cdn.py --changed` 只清变更文件避免限流），固定地址即可立即反映最新内容。
+
 ## v1.5.1 (2026-11-22)
 
 - **壳仓库同步主仓库 jar 加载失败修复**：`config/aizheteng.json` 中 6 条线路（饭太硬/肥猫/小米/PG/摸鱼儿/鸟叔）地址改到 `@v1.5.1` tag，`config/zheteng.json` 主备入口同步；版本 v1.5.0 → v1.5.1。修复根因在主仓库：这 6 条 spider 用相对路径 `.jar`，远程导入时 jsdelivr 对 `.jar` 返回 403 导致 jar 加载失败，已改为 `.txt` 伪装文件 + 绝对地址 + md5。
