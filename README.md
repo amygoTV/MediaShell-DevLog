@@ -3,6 +3,10 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.5.1 (2026-11-22)
+
+- **壳仓库同步主仓库 jar 加载失败修复**：`config/aizheteng.json` 中 6 条线路（饭太硬/肥猫/小米/PG/摸鱼儿/鸟叔）地址改到 `@v1.5.1` tag，`config/zheteng.json` 主备入口同步；版本 v1.5.0 → v1.5.1。修复根因在主仓库：这 6 条 spider 用相对路径 `.jar`，远程导入时 jsdelivr 对 `.jar` 返回 403 导致 jar 加载失败，已改为 `.txt` 伪装文件 + 绝对地址 + md5。
+
 ## v1.5.0 (2026-11-22)
 
 - **TVLives 直播源加主备节点**（26 份配置，含壳仓库 config）：接口里每条 `TVLives.txt` 后新增 `TVLives(备)`，URL 走 `fastly.jsdelivr.net@master`；主链接保持 `@master`（直播源每天由 Action 重建，固定 tag 会冻结内容）。两节点实测内容 MD5 一致、约 1 秒返回。
