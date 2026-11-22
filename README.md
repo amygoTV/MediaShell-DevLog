@@ -3,6 +3,14 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.9.7 (2026-11-22)
+
+用户反馈：直播播放页画面中间仍有常驻 ▶ 按钮，也没有全屏/小窗按钮。
+
+- **根因**：直播 `#liveScreen` 与点播 `#player` 是两套独立实现，v1.9.0 的播放器改造只改了点播。且全局 `.hidden` 规则当时只覆盖 `.player/.modal/.toast/.player-msg`，不含 `.live-center-play.hidden` → 直播中央按钮 `classList.add('hidden')` 加了也白加、一直显示。
+- **修复**：① 补 `.live-center-play.hidden{display:none}`，中央图标改为暂停瞬间短暂闪现（`liveFlashIcon()`，pointer-events:none，`.show` 控 opacity）；② 直播模板右上加 `#btnLiveFullscreen`/`#btnLivePiP`；③ 新增 `bindLiveControls()`：单击画面=暂停/恢复、双击=全屏，按钮 e.stopPropagation 防误触；全屏对 `#liveScreen`、小窗对 `#liveVideo`。
+- **验证**：smoke 23/23（新增 2 例直播控件）+ store 11/11。
+
 ## v1.9.6 (2026-11-22)
 
 用户诉求：像影视仓那样可以选择接口和线路（确认后聚焦「订阅线路/仓库」这一层，不要多订阅管理/点播站点搜索/频道线路排序）。
