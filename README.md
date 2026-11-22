@@ -3,6 +3,15 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.4.8 (2026-11-22)
+
+- **修复「多仓接口解析失败」**（配置层，主仓库 MyTV 同步）：v1.4.7 换 CDN 后域名可达，但影视仓导入多仓仍有 3 条线路解析失败。
+  - 主因：`fty/api.json`、`feimao/api.json`、`xiaomi/api.json` 首行带 `//关注微信公众号…` 注释，影视仓严格 JSON 解析不容忍注释，直接 `JSONDecodeError`。删除注释后三份配置恢复严格合法 JSON（sites 56/62/35）。
+  - 次因：多处订阅地址仍是 `raw.githubusercontent.com`（国内/电视端实测 20 秒超时 HTTP 000）——`zheteng.json` 备选仓（主仓 + DesktopShell + 壳仓库 config 共 3 份）、README/README.en 备用地址、`scripts/aizheteng_sources.json` 21 条备选用址、`Aizheteng_Sync.yml` 镜像源。全部替换为 jsdelivr 双节点（`cdn.jsdelivr.net` + `fastly.jsdelivr.net`，实测均 1.4 秒 200）。
+  - CDN 缓存规避：新增不可变 tag `v1.4.8`，3 条修复子配置地址改用 `@v1.4.8` 而非 `@master`（后者缓存仍返回旧内容），实测两个节点立即返回修复后内容。
+  - 校验：21 条子配置严格 JSON 解析 21/21 通过，`zheteng.json` 17 条引用全部有效。
+- 版本号 v1.4.7 → v1.4.8（`package.build.json`、`README.md` 同步）。
+
 ## v1.4.4 (2026-11-22)
 
 - **直播源筛选逻辑正式写入 GitHub Actions 自动化**（新增 `.github/workflows/LiveSources.yml`）。之前只有两个旧工作流，且都有致命问题：`PlatformLive.yml` 拉的是**已失效的源**（`live.yang-1989.eu.org` 已 302 到占位视频、`sub.ottiptv.cc` 的 bilibili 大量 404），每 30 分钟就把源文件覆盖成不可用状态；`TVLives_Sync.yml` 拉的是仓库自己的旧文件形成自循环，且**不做任何可播性验证**。两者已停用（改名 `.disabled`）。新工作流每 6 小时跑一次，跑完自动校验格式、有广告残留就判定失败、不通过就不提交。
