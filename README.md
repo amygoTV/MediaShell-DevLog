@@ -3,6 +3,14 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.11.0 (2026-11-22)
+
+用户反馈：直播页仍看不到 mpv/⚡硬解按钮，但播 flv 会自动弹 mpv、多线路弹多个、关闭后后台仍有声音。要求「把内置播放器换成 mpv」。用户明确选择**彻底移除内置，只用 mpv**。
+
+- **直播彻底改走外部播放器**：`livePlayChannel` 删掉内置 hls.js/video 分支（loadSource/watchdog/onerror 全部移除），一律 `pickLivePlayer()` 选播放器 → `MS.playExternal()` 独立窗口硬解；旧存档 `builtin` 视为无效自动回退本机可用播放器；无播放器给出明确路径提示。直播页 `<video>` 隐藏，画面区改为状态面板（`.live-external-panel`）；去掉「内置」选项、⚡按钮、超时/全屏/小窗等只对内置有意义的空间；默认播放器改 `mpv`。点播仍用内置 hls.js 不受影响。
+- **三个 bug 根因与修复**：① 按钮不显示＝播放器检测在 `ensureLiveData()` 末尾、UI 早已渲染 → 把 `detectPlayers()` 提前到 init 设置加载后；② 多窗口＝`livePlayChannel` 每次 spawn 新 mpv 且不关旧的 → main.js 维护 `externalChild`，`play-external` 启动前先 `taskkill /PID /T /F` 关掉上一个；③ 关不掉后台有声＝外部进程从不清理 → 新增 `stop-external` IPC，`liveStop()`/退出(`before-quit`) 时 kill；`stop-external`/`playExternal`/`proxyUrl` 补进 preload 与测试桩。
+- **验证**：smoke 26/26（新增 pickLivePlayer 用例 + 改「直播无内置路径」断言）+ store 11/11；main.js/preload.js `node --check` 通过。
+
 ## v1.10.0 (2026-11-22)
 
 用户反馈直播页看不到 mpv(轻快) 与 ⚡硬解按钮。
