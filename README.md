@@ -3,6 +3,24 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.8.0 (2026-11-22)
+
+- **新增应用图标**：新增 `build/icon.ico`（16/24/32/48/64/128/256 共七尺寸，全 BMP 条目）与 `build/icon.png`（512×512 透明底）。设计为「圆角电视屏底板 + 品牌渐变播放三角 + 右上角直播信号弧」，配色直接取自界面主题变量：强调色 `#ff5c7a`、次强调 `#6ea8ff`、底色 `#0d0f14`、描边 `#4a5670`。
+- **图标生成器 `scripts/make_icon.py`**：**纯 Python 标准库实现**（本机没有 PIL/numpy，且 pip 在沙箱内会被 SIGTERM 静默杀掉），自写 PNG 编码（zlib）、SDF 抗锯齿（圆角矩形 / 圆角凸多边形 / 圆弧带）、盒式滤波缩放、ICO 打包（BITMAPINFOHEADER + 32bpp BGRA + AND 掩码）。`python scripts/make_icon.py` 可重复构建，约 5 秒出图。
+- **图标接入打包链**：
+  - `electron-builder.yml` 新增 `win.icon: build/icon.ico`；
+  - `main.js` 的 `BrowserWindow` 新增 `icon: path.join(APP_DIR, 'icon.png')`（随 asar 打包，窗口与任务栏均显示图标）；
+  - `build.bat` 打包时把 `build/icon.png` 一并复制进 `_stage`；
+  - 新增 `afterPack: scripts/apply_icon.js` 钩子，用本机 electron-builder 缓存里已解压好的 `rcedit-x64.exe` 给 unpacked 目录的 `MediaShell.exe` 注入图标。
+- **踩坑记录**：
+  1. electron-builder 默认靠 `winCodeSign` 包里的 rcedit 改 exe 图标，但该包在 Windows 解压时会因「创建符号链接需要管理员权限」而失败（`darwin/10.12/lib/libcrypto.dylib`），整包解压报错连带打包失败 → 改用 `afterPack` 钩子直接复用本机缓存里的 rcedit，绕开下载与解压。
+  2. `afterPack` 钩子是**模块导出函数**（`module.exports = afterPack`），不是接收 JSON 命令行参数的脚本；写错会导致 `JSON.parse` 抛错中断打包。
+  3. `signAndEditExecutable: false` 会同时跳过图标注入与版本信息写入，因此用 afterPack 补图标时保持 false 即可。
+  4. 打包前 `_stage/package.json` 必须是 `package.build.json`（含最新版本号），否则产物文件名仍带旧版本号。
+- **验证**：解析 PE 资源目录确认 `win-unpacked/MediaShell.exe` 与便携版 launcher 均含 7 个尺寸的图标条目；解码 256×256 条目导出 PNG，图案与源文件逐像素一致；16px 下播放三角仍清晰可辨。
+- 本地部署同步：`MediaShellApp/resources/app.asar` 与 `D://MediaShell//resources//app.asar` 已用带图标的新资源重打包（772,439 字节）；便携版 EXE 重新打包为 `MediaShell-1.8.0-portable.exe`（69,914,116 字节）。
+- 版本 v1.7.0 → v1.8.0（`package.build.json`、`package.json`、README 同步）。
+
 ## v1.7.0 (2026-11-22)
 
 - **直播源改为影视仓/TVBox 标准 TXT 格式**：用户提供了 TVBoxBD0130 的直播列表作为格式样本（`E://BaiduNetdiskDownload//TVBoxBD0130//TVLives.txt`），本壳随之对齐 —— UTF-8 带 BOM + CRLF、**一行一条线路**、同名频道重复出现（客户端按频道名合并为多线路）、**数据行之间不留空行**（空行不含 `://` 会被影视仓当成频道指令行，直接导致整个直播列表为空）、频道名改 `CCTV-1` 风格。
