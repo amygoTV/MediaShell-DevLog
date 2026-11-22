@@ -3,6 +3,16 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.9.3 (2026-11-22)
+
+用户反馈：导入 `zheteng.json` 报「配置中没有 sites」。
+
+- **根因**：影视仓配置是三级索引——`zheteng.json` 的 `storeHouse`（2 个主备仓库）→ `aizheteng_v2.json` 的 `urls`（21 条垂直线路）→ 各 `api.json` 真正的 `sites`（20~107 站）+ `lives`。影视仓 App 逐级展开让用户选，桌面壳原导入逻辑只认顶层 `sites`，导入主索引即失败。
+- **为什么不全部合并**：实测前 8 条线路去重就有 289 个不同站 key，21 条全展开 500+ 站——站点列表爆炸且启动 `probeAllSites` 并发探测几百站会卡死。因此模仿影视仓「选一条线路」的行为。
+- **实现**：`expandSubscription(url, root)` 递归最多 5 层：① 末级有 `sites` 直接返回；② `storeHouse` 逐个尝试首个可达仓库；③ `urls` 并发拉取所有线路（各 12s 超时），过滤无 sites 的，取响应最快的一条。`pickBestLine()` 并发选线、保留该线路的 `sites` + `lives`。展开结果 saveSubscription 持久化，启动 `loadConfig` 直接读缓存。
+- **测试**：smoke_test 框架改为支持 async 断言；新增 3 个用例（末级直返 / storeHouse 两级 / storeHouse→urls 三级选线）→ 13/13 全绿。
+- **真实环境验证**：用 CDN 真实索引跑展开，`zheteng`→`aizheteng_v2`(21 条)→并发测前 6 条线路，最快「饭太硬」56 站/2 直播，全程 656ms。
+
 ## v1.9.2 (2026-11-22)
 
 修复便携版外壳 exe「还是没图标」——**本轮最重要的踩坑**。
