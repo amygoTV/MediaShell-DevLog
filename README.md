@@ -3,6 +3,16 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.3 (2026-11-23)
+
+用户反馈两件事：①搜索时找不到资源；②直播页的全屏/小窗按钮也改到下面。
+
+- **搜索找不到资源的根因**：`doSearch()` 只搜当前选中的 `state.site` 一个站。而配置里的默认站 `光速影视`（api.guangsuapi.com）当前整站返回空（连 `ac=videolist` 首页列表都空），于是搜索永远显示「没有找到相关资源」，哪怕别的站有结果也不去搜。首页 `loadHomeData()` 早就有 `pickRacers`/`raceFirst` 多站竞速降级，搜索却一直是单站，行为不对称。
+  - **实测证据**（2026-11-23，`wd=仙侠`）：光速影视 空、虎牙采集 空、淘片 total 无但 list=2、红牛影视 total=5 list=5。旧版只搜光速 → 0 条；新版能汇总出红牛 5 + 淘片 2。
+- **修复：多站并发搜索**：`doSearch()` 改为遍历 `state.sites`，当前站优先、其余 CMS 站跟上，按 `apiBase` 去重（虎牙采集/虎牙HLS 同 api 只搜一次）；`cmsGet(...wd=kw...)` 并发查询、逐站超时 8s、整体 `Promise.race` 12s 上限；汇总后按 `vod_id|vod_name` 去重，每条打 `__siteKey` 来源站。`posterHTML()` 给海报加 `data-sitekey`，`bindPosters()` 用来源站（查 `state.sites`）而非当前站 `openDetail`。空结果提示改成「已搜索 N 个站点，均未找到」，进度/超时都有明确提示。
+- **直播按钮下移的根因**：`style.css` 里 `.live-tools` 被定义了两次——上面 v1.13.1 加的文档流布局（`margin:8px 0 4px`）被文件下方残留的旧规则 `.live-tools{position:absolute; right:16px; top:14px; z-index:6}` 覆盖，按钮又被拽回播放区右上角，而播放区正被 mpv 原生子窗口盖住 → 实际看不见。删除旧的 absolute 规则与配套 `.live-tool-btn`（HTML 已不用该类）。
+- **验证**：`node --check` 全过；`smoke_test.js` 新增 3 条断言（多站并发搜索 / 海报按来源站打开 / 直播工具栏无 absolute 覆盖），**42/42** 通过，store 11/11。
+
 ## v1.13.2 (2026-11-23)
 
 用户反馈点播报 `播放器初始化失败：option.contextmenu.0.html require 'string' or 'Element' type`，并要求把全屏/小窗按钮放到播放区下方。
