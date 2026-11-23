@@ -3,6 +3,15 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.2 (2026-11-23)
+
+用户反馈点播报 `播放器初始化失败：option.contextmenu.0.html require 'string' or 'Element' type`，并要求把全屏/小窗按钮放到播放区下方。
+
+- **根因**：v1.13.0 加右键菜单时写的是 `contextmenu:[{name:'打开系统播放器', click}]`。从 vendor/artplayer.min.js 的 schema 定义确认 `contextmenu` 项要求 `html: st`（string|Element，必填），`name` 只是可选的 `?at`（显示名）。只给 name 时 ArtPlayer 在 option 校验阶段就抛错，`new window.Artplayer(opts)` 直接失败 → 点播完全起不来（被 `playEpisode` 的 try/catch 捕获显示为「播放器初始化失败」）。
+- **修复**：`name` → `html: '打开系统播放器'`。
+- **按钮位置**：把点播顶栏 `player-actions` 里的 `#btnFullscreen`/`#btnPiP` 移到播放区下方新增的 `<div class="player-tools">` 独立工具栏（与直播页 `live-tools` 布局一致）。事件绑定不变（`bindPlayerControls()` 仍按 id 绑定）。这样也不会和 ArtPlayer 自带控制栏右下角的全屏按钮重叠。
+- **验证**：新增两条源码级断言（contextmenu 必含 html、全屏/小窗不在顶栏而在 player-tools），`smoke_test.js` **39/39**、store 11/11。
+
 ## v1.13.1 (2026-11-23)
 
 用户反馈「又没有全屏和小窗按钮了呀」。排查发现 v1.12 做 mpv 内嵌时把播放区内的按钮全移走（原生 mpv 子窗口会盖住区内所有 DOM），但区外没补回来——`bindLiveControls()` 一直绑定着 `#btnLiveFullscreen`/`#btnLivePiP`，而 `renderLive()` 生成的 HTML 里这两个 id 根本不存在，等于绑了个空气，按钮从未显示过。
