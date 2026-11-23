@@ -3,6 +3,15 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.1 (2026-11-23)
+
+用户反馈「又没有全屏和小窗按钮了呀」。排查发现 v1.12 做 mpv 内嵌时把播放区内的按钮全移走（原生 mpv 子窗口会盖住区内所有 DOM），但区外没补回来——`bindLiveControls()` 一直绑定着 `#btnLiveFullscreen`/`#btnLivePiP`，而 `renderLive()` 生成的 HTML 里这两个 id 根本不存在，等于绑了个空气，按钮从未显示过。
+
+- **按钮移到区外**：在 `renderLive()` 的播放区**下方**（`live-msgline` 之后、`live-lines` 之前）新增 `<div class="live-tools">` 工具栏，放 `⛶ 全屏` / `⧉ 小窗` 两个 `mini-btn`。放在播放区外就不会被原生承载窗口盖住。
+- **小窗改成真画中画**：内嵌 mpv 下 `#liveVideo` 是 `class="hidden"` 的空 video、根本没在播，原来的 `requestPictureInPicture()` 走它必然失败。新增主进程 IPC `live-embed-pip`：把 mpv 的**承载窗口** `setAlwaysOnTop(true,'screen-float')` + `setBounds` 缩到屏幕右下角 480×270，mpv 子窗口跟着缩放 —— 画面连续、不重启 mpv、不重新拉流。再点一次还原到原播放区尺寸。⚠️ Windows 上 Electron 不能改已建窗口的 parent，所以用「置顶 + 缩小」而非解除父子关系；`syncEmbedCarrier()` 和 `live-embed-rect` 在 `embedPip` 时提前 return，避免主窗口移动/布局变化把小窗拉回原位；`closeEmbed()` 与 `liveStop()` 都复位 pip 状态。
+- **全屏与小窗互斥**：小窗模式下点全屏会先 `liveEmbedPip(false)` 还原再进全屏，避免对悬浮小窗发 `set fullscreen` 出异常。状态条加 `· ⧉小窗` 标识。
+- **验证**：`node --check` 全过；`smoke_test.js` 新增小窗 IPC 用例（进入/退出各调一次 `liveEmbedPip`、pip 状态正确翻转）共 **37/37**，store 11/11。
+
 ## v1.13.0 (2026-11-23)
 
 用户要求：**MediaShell 参考 TVBox Desktop 的播放器改造**。逆向解包 `D:/TVBoxDesktop/app/TVBox Desktop.exe`（Electron + React 19 + ArtPlayer 5.4 + hls.js 1.7.3）后，把其中最有价值的三块移植到 MediaShell。
