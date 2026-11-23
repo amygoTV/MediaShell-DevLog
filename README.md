@@ -3,6 +3,23 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.5 (2026-11-24)
+
+用户问「直播页面的全屏和小窗不能以到右下角吗？」（选型确认：浮在画面右下角，而非贴页面右下角）。
+
+- **核心难点**：承载窗口 `embedCarrier` 的尺寸**恰好等于播放区矩形**，原生 mpv 子窗口画在上面 → 播放区内的一切 DOM 都被原生窗口盖住（v1.13.1 已踩过：区内按钮绑了 id 却看不见）。因此「按钮浮在画面右下角」**纯 DOM 方案做不到**，必须另开一个浮层窗口。
+- **实现**：新增 `overlay.html`（只装两个按钮的透明小页）+ 主进程 `ensureOverlay()` / `syncOverlayBounds()` / `showOverlay()`。
+  - 浮层 `parent: win` → owned window，只浮在主窗口之上，不会盖住其它应用；主窗口最小化时自动跟随隐藏。
+  - `setAlwaysOnTop(true, 'screen-float')` → 层级高于同为 owned 的承载窗口，才能压在画面上。
+  - `transparent` + 无边框 → 只有按钮那两块可见，其余透出下面的画面。
+  - 位置：贴播放区右下角（右/下各留 12px），随 `live-embed-rect` 上报的播放区几何同步；主窗口 move/resize 时一起跟（复用 `syncEmbedCarrier()`）。
+  - 按钮点击走 IPC：`overlay.html` → `ipcRenderer.send('live-overlay-action')` → 主进程转发 → 主窗口渲染层执行 `liveToggleFullscreen/liveTogglePiP`（浮层是独立窗口，鼠标事件到不了主页面的 DOM）。
+  - 生命周期：播放成功显示；停播（`closeEmbed`）隐藏；进小窗隐藏（画面已飞到屏幕右下角，浮层会错位）；出小窗恢复；**退出时必须显式 `destroy()`** —— 否则浮层残留导致 `window-all-closed` 永不触发，主窗口关掉后应用变成看不见的僵尸进程。
+  - 区外那份 `.live-tools` 降级为**浮层创建失败时的兜底**（默认带 `.off` 隐藏，浮层不可用才显示）。
+- ⭐ **自测真抓出一个 bug**：首次播放的时序是「先 `live-embed`(带 rect) → 后 `live-embed-rect` 上报」，而浮层定位读的 `lastEmbedRect` 原本只在**后者**赋值 → 定位时为 null，浮层停在默认位置（实测偏到主窗口左上角附近）。修法：`live-embed` 里先 `lastEmbedRect = rect`。
+- ⭐ **新增 `tools/overlay_probe.js` 浮层专项自测**：真实 Electron 下建「主窗口 + 承载窗口 + 浮层」同构窗口树，逐项验证 ①定位是否精确等于播放区右下角 ②是否落在播放区矩形内 ③是否可见 ④alwaysOnTop 层级 ⑤页面按钮渲染 ⑥按钮→IPC 通路，**8/8 通过**。这个自测是发现上面定位 bug 的关键手段 —— 静态读代码看不出来，必须真跑 Electron。
+- **验证**：`node --check` 全过；`smoke_test.js` 新增 5 条断言（浮层存在与定位式/生命周期与退出销毁/渲染层接线/lastEmbedRect 顺序/自测脚本存在），**49/49** 通过；asar 字节级确认 `ensureOverlay`/`syncOverlayBounds`/`showOverlay`/`overlay.html`/`live-overlay-action` 均在包内；真实壳启动 4 进程存活、日志 0 报错。
+
 ## v1.13.4 (2026-11-23)
 
 用户反馈「显示的资源点进去之后对不上啊」。
