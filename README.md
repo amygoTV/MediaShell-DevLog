@@ -3,6 +3,16 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.0 (2026-11-23)
+
+用户要求：**MediaShell 参考 TVBox Desktop 的播放器改造**。逆向解包 `D:/TVBoxDesktop/app/TVBox Desktop.exe`（Electron + React 19 + ArtPlayer 5.4 + hls.js 1.7.3）后，把其中最有价值的三块移植到 MediaShell。
+
+- **点播换 ArtPlayer 5.4**：新增 `vendor/artplayer.min.js`（jsDelivr 下载，134KB），`index.html` 在 hls.js 之后引入；点播区 `<video>` 改挂到 `ArtPlayer` 容器，用 `createArtPlayer()` 工厂统一创建，`playEpisode()` 改为走 ArtPlayer 实例。自带完整控制栏（播放/进度/音量/全屏/网页全屏）、倍速/比例/翻转设置、空格与方向键热键、右键菜单（系统播放器）。**保留**弹幕层、选集、观看进度写历史、系统播放器按钮；旧自写控制条仅 CSS 隐藏，代码未删、可回退。照抄 TVBox 源码里专门注释的坑：`type`/`poster` 只在有值时才传入（`undefined` 会被 ArtPlayer option 校验器抛错、React 无错误边界白屏）。
+- **HLS 起播优化（移植 `makeM3u8Loader`）**：`abrEwmaDefaultEstimate: 4e6`（默认 500kbps 会让多档直播从最低档起播糊好几秒）；`MANIFEST_PARSED` 时按 `height*1e6+bitrate` 手动选最高档，起播即高清；fatal 错误分级恢复（网络 `startLoad()` / 媒体 `recoverMediaError()`，限 2 次）；`xhrSetup` 注入 Referer 防盗链。与既有 `hlsFastConfig()` 大缓冲抗抖动策略融合，不是照搬覆盖。
+- **直播线路体检增强（缓存 + 懒检 + 失败换线）**：基于既有 `probeLiveLines`/`ch.good` 加 6 小时 localStorage 缓存（带时间戳）；点击频道时先查缓存、无有效缓存才懒检；切分组预热；`livePlayChannel` 启动失败自动切下一条可用线路并提示「已换到第 N/M 条」。**直播仍走 mpv `--wid` 内嵌不变**——FLV/TS 解码是硬约束，TVBox 自己也没有 flv.js、同样走外挂，硬换会搞坏直播。
+- **验证**：`node --check` 通过；`smoke_test.js` 新增 5 个 v1.13 用例 **36/36**（导出 `createArtPlayer`/`healthFresh`/`probeChannelLazy`/`liveAutoNextLine`/`markLineHealth` 供测试）；ArtPlayer/Hls UMD 加载实测通过（v5.4.0）；真实壳启动 10 秒存活、日志无报错。
+- **边界说明**：ArtPlayer 只用于点播；直播自动换线目前只覆盖「启动失败」，播放中途断流暂未做（mpv 内嵌无 `video:error` 事件可用，要补得挂 IPC 监听 `idle-active`，风险高，留待观察）。
+
 ## v1.12.0 (2026-11-23)
 
 用户反馈：**「mpv 播放窗口能不能限制在播放窗口，不要弹出」**。v1.11 走独立窗口虽然解决了多窗口/后台有声，但观感仍是「弹了个播放器出来」，与「壳内播放区」割裂。
