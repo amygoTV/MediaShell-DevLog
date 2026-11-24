@@ -3,6 +3,29 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.7 (2026-11-24 上午)
+
+用户反馈「直播页面的全屏和小窗按钮无效，按钮停留在播放器右下方」（v1.13.5 刚做的右下角浮层）。
+
+- ⭐⭐ **根因 1：浮层 `focusable: false` → 鼠标点不到**
+  - v1.13.5 建浮层时写了 `focusable: false`（想避免抢主窗口焦点）。Windows 会给这类窗口加 **`WS_EX_NOACTIVATE`** 扩展样式，而该样式使窗口**不参与鼠标命中测试** → 点击直接穿透到下层。
+  - 实测证据（Win32 `WindowFromPoint` + 浮层页面装指针探针）：修复前浮层页面 `{down:0, up:0, click:0}` —— 一个鼠标事件都没进来；修复后 `{down:1, up:1, click:1, target:"btnFull"}`。
+  - 修复：`focusable: true`。`showInactive()` 仍保证不抢主窗口焦点，两者不冲突。
+- ⭐⭐ **根因 2：preload 的 IPC 监听器累积**
+  - `onLiveOverlayAction` 每次调用都 `ipcRenderer.on('live-overlay-action', ...)` 且**永不移除**，而 `bindLiveControls()` 每次进直播页都会调一次 → 监听器越积越多，一次点击触发 N 次 `liveTogglePiP/liveToggleFullscreen`，偶数次时状态来回切，**同样表现为「点了没反应」**。
+  - 修复：preload 侧改**单例订阅**（模块级 `overlayActionHandler`，重复调用先 `removeListener` 再挂）。
+- ⭐ **排查方法论（本次最值钱的产出）**：
+  - ⭐ **Electron 的 `sendInputEvent` 是进程内注入，绕过 Windows 窗口命中测试** → 用它测「按钮点不动」永远测不出来。必须用 Win32 `SetCursorPos` + `mouse_event` 做**真实物理点击**（`scripts/overlay_click_test.py`），才能暴露 `WS_EX_NOACTIVATE` 这类只在命中测试层生效的问题。
+  - ⭐ **排查链路分段定位**：`tools/overlay_click_probe.js` 逐段验证 ①浮层页面能否 `require('electron')` ②`ipcRenderer` 是否可用 ③click 是否触发 ④`send` 是否发出 ⑤主进程是否收到 ⑥渲染层是否收到 —— 一次性定位断点，比盲改快得多。
+  - ⭐ **新增 CDP 自动化钩子**：`MSHELL_CDP_PORT=9222` 开启远程调试端口 → 可用 CDP 驱动**真实应用**（进直播页、触发内嵌播放、读 `live-overlay-info`），把「按钮无效」这种要人眼操作的场景变成可脚本化回归。
+  - ⭐ **踩坑**：用 `MS.onLiveOverlayAction(探针)` 统计监听器数量时，**探针会把产品回调顶掉**（单例替换语义）→ 表现为「动作没执行」。排查时要用**不干扰产品逻辑**的方式验证（看主进程日志、看 mpv 属性、toast 文案）。
+  - ⭐ **踩坑**：Win32 `WindowFromPoint` 命中的是 `Chrome_RenderWidgetHostHWND`（浮层的 Chromium 渲染层子窗口），不是浮层父窗口 hwnd —— 判定「是否命中浮层」要认渲染层，不能只比父 hwnd。
+- **验证（真实物理点击，两按钮全通）**：
+  - 「⛶ 全屏」→ `liveState.fullscreen=true`、mpv `fullscreen` 属性 `{"value":true}`、toast「已全屏播放（按 Esc 或双击退出）」
+  - 「⧉ 小窗」→ `pip=true`、承载窗口缩到 `{x:1416,y:738,w:480,h:270}`、toast「已切到小窗（右下角悬浮…）」、浮层自动隐藏
+- **其他改动**：新增 `live-overlay-info` 排障 IPC（返回浮层 bounds/visible/alwaysOnTop/focusable/与承载窗口的重叠关系）。
+- **验证**：smoke **55/55**（新增 3 条：focusable 必须 true / IPC 单例订阅 / CDP 钩子与排障接口齐全）；asar 1,039,276 字节字节级确认（`focusable: true`×1、`overlayActionHandler`×6、`MSHELL_CDP_PORT`×3、`live-overlay-info`×3）；exe 69,982,200 字节 overlay OK；D 盘已原地升级。
+
 ## v1.13.6 (2026-11-24)
 
 用户反馈「光速影视和虎牙采集为什么是空的，测试一下，如果真是空的，把所有相关内容干掉，包括我的自制接口」。
