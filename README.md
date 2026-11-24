@@ -3,6 +3,24 @@
 > 桌面壳软件独立仓库的开发日志。2026-11-22 从主仓库 MyTV 的「更新日志.md」中摘出。
 > v1.4.x 系列全部为 MediaShell 桌面壳的开发记录。
 
+## v1.13.6 (2026-11-24)
+
+用户反馈「光速影视和虎牙采集为什么是空的，测试一下，如果真是空的，把所有相关内容干掉，包括我的自制接口」。
+→ 实测后用户决策：**放宽证书校验保留站点**、**自制接口不动**。
+
+- ⭐⭐ **根因不是站点死了，是证书过期 + 自签名**：
+  - 实测证书：`subject=issuer=C=cn, ST=sh, L=sh, O=sh, OU=sh, CN=sh, emailAddress=sh@sh.com`，有效期 `2024-04-29 ~ 2025-04-29`（**已过期约 19 个月**），两站用的是同一张。
+  - 表现分层：Node `https`（**应用真实链路**）报 `certificate has expired`；Electron `net` 报 `net::ERR_CERT_AUTHORITY_INVALID`；而 curl/openssl 有时命中 Cloudflare 边缘节点的正规证书（Google Trust Services）→ **「浏览器能开、壳里是空的」的错觉**。
+  - **数据其实还在**：光速 `total=119106`、虎牙 `total=118031`。
+  - ⚠️ 排查弯路：先用 curl 直连 443 测是「空响应」→ 误以为站点全挂；实际是本机 Schannel 对自签名证书宽容、curl 又走了 HTTP→301→HTTPS 才成功。**结论必须用真实 Electron 链路验证，不能只信 curl**。
+- **修复 1：证书白名单**：新增 `INSECURE_CERT_HOSTS = ['api.guangsuapi.com','www.huyaapi.com']` + `isInsecureCertHost()`，命中时设 `rejectUnauthorized=false` + `checkServerIdentity` 忽略。**仅白名单生效，其余域名仍严格校验**，不整体削弱安全性。
+- ⭐ **修复 2：UA 归一化（同样关键）**：全项目 8 处都用 `'User-Agent': 'okhttp/3.15'` 覆盖了主进程默认的 Chrome UA（影视仓沿用习惯）。实测**虎牙在该 UA 下直接超时**，Chrome UA 才返回 JSON。在 `httpGet` 里把 `okhttp/3.15` 视为「未指定」统一回落 DEFAULT_UA，一处改动全局生效。
+- ⭐ **修复 3：补安全黑名单**：实测虎牙域名**被劫持**，会 302 跳博彩落地页（两次测到 `iiwbo32.qjxns.com/index.html?channelCode=...` 和 `133251.online`）。原 `BLOCKED_REDIRECT` 规则不含这些域名 → 显式加 `qjxns.com`（`online` 顶级域原规则已覆盖）。**主进程的跳转拦截机制本来就正常工作**（实测报「目标被重定向到可疑站点，已阻止：133251.online」），这次只是补漏。
+- ⭐ **虎牙的行为**：平时 **10/10 正常返回** JSON（连打间隔 900ms 与 0ms 都是 10/10），但被劫持时跳博彩站 —— 属间歇性。用户决策：保留（数据有价值 + 跳转已被拦）。
+- **新增自测工具**：`tools/net_probe.js`（单站连通性，Electron `net` 模块）、`tools/net_stat2.js`（多站成功率统计）。**必须用真实 Electron `net` 测**，Node `urllib` 会因本机 CA 库报 `CERTIFICATE_VERIFY_FAILED` 而误判。
+- **验证**：修复后 **7/7 站点全部正常**（光速 119106 / 虎牙 118031 / 红牛 118515 / 量子 165113 / 闪电 126016 / 淘片 list=30）；smoke **52/52**（新增 3 条：证书白名单按域名精确匹配且限定 https / UA 归一化 / 自测脚本存在）；asar 字节级确认 `INSECURE_CERT_HOSTS`×4、`rejectUnauthorized = false`×1、`qjxns`×2；D 盘真实启动 8 进程存活、无 JS 异常。
+- ⚠️ 顺带修掉的**安全缺口**：原黑名单规则不含 `qjxns.com`，采集域名被拍卖/劫持到博彩站时会漏过。
+
 ## v1.13.5 (2026-11-24)
 
 用户问「直播页面的全屏和小窗不能以到右下角吗？」（选型确认：浮在画面右下角，而非贴页面右下角）。
